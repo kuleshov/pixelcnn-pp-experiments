@@ -119,8 +119,28 @@ for epoch in range(args.max_epochs):
     for batch_idx, (input,_) in enumerate(train_loader):
         input = input.cuda(async=True)
         input = Variable(input)
-        output = model(input)
-        loss = loss_op(input, output)
+
+        # original code:
+        # output = model(input)
+        # loss = loss_op(input, output)
+
+        # quantile loss:
+        alpha = torch.rand_like(input)
+        output = model(input, alpha)
+        loss = quantile_loss(input, output, alpha)
+
+        # simple energy loss (old code)
+        # alpha1, alpha2 = torch.rand_like(input), torch.rand_like(input)
+        # output1 = model(input, alpha1)
+        # output2 = model(input, alpha2)
+        # loss = simple_energy loss(output1, output2, input)
+
+        # kernelized enetergy loss
+        # nsamples = 5
+        # output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
+        # output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
+        # loss = kernelized_energy_loss(input.unsqueeze(4), output)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
