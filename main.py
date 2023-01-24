@@ -7,7 +7,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torchvision import datasets, transforms, utils
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from utils import * 
 from model import * 
 from PIL import Image
@@ -117,17 +118,17 @@ for epoch in range(args.max_epochs):
     time_ = time.time()
     model.train()
     for batch_idx, (input,_) in enumerate(train_loader):
-        input = input.cuda(async=True)
+        input = input.cuda()
         input = Variable(input)
 
         # original code:
-        # output = model(input)
-        # loss = loss_op(input, output)
+        output = model(input)
+        loss = loss_op(input, output)
 
         # quantile loss:
-        alpha = torch.rand_like(input)
-        output = model(input, alpha)
-        loss = quantile_loss(input, output, alpha)
+        # alpha = torch.rand_like(input)
+        # output = model(input, alpha)
+        # loss = quantile_loss(input, output, alpha)
 
         # simple energy loss (old code)
         # alpha1, alpha2 = torch.rand_like(input), torch.rand_like(input)
@@ -144,7 +145,7 @@ for epoch in range(args.max_epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        train_loss += loss.data[0]
+        train_loss += loss.data.item()
         if (batch_idx +1) % args.print_every == 0 : 
             deno = args.print_every * args.batch_size * np.prod(obs) * np.log(2.)
             writer.add_scalar('train/bpd', (train_loss / deno), writes)
@@ -162,12 +163,12 @@ for epoch in range(args.max_epochs):
     torch.cuda.synchronize()
     model.eval()
     test_loss = 0.
-    for batch_idx, (input,_) in enumerate(test_loader):
-        input = input.cuda(async=True)
+    for (batch_idx, (input,_)) in enumerate(test_loader):
+        input = input.cuda()
         input_var = Variable(input)
         output = model(input_var)
         loss = loss_op(input_var, output)
-        test_loss += loss.data[0]
+        test_loss += loss.data.item()
         del loss, output
 
     deno = batch_idx * args.batch_size * np.prod(obs) * np.log(2.)
