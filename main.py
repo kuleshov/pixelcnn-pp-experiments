@@ -39,7 +39,7 @@ parser.add_argument('-l', '--lr', type=float,
                     default=3e-4, help='Base learning rate')
 parser.add_argument('-e', '--lr_decay', type=float, default=0.999995,
                     help='Learning rate decay, applied every step of the optimization')
-parser.add_argument('-b', '--batch_size', type=int, default=64,
+parser.add_argument('-b', '--batch_size', type=int, default=32,
                     help='Batch size during training per GPU')
 parser.add_argument('-x', '--max_epochs', type=int,
                     default=5000, help='How many epochs to run in total?')
@@ -127,9 +127,9 @@ for epoch in range(args.max_epochs):
         # loss = loss_op(input, output)
 
         # quantile loss:
-        alpha = torch.rand_like(input)
-        output = model(input, alpha)
-        loss = quantile_loss(input, output, alpha)
+        # alpha = torch.rand_like(input)
+        # output = model(input, alpha)
+        # loss = quantile_loss(input, output, alpha)
 
         # simple energy loss (old code)
         # alpha1, alpha2 = torch.rand_like(input), torch.rand_like(input)
@@ -138,10 +138,12 @@ for epoch in range(args.max_epochs):
         # loss = simple_energy loss(output1, output2, input)
 
         # kernelized enetergy loss
-        # nsamples = 5
-        # output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
-        # output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
-        # loss = kernelized_energy_loss(input.unsqueeze(4), output)
+        nsamples = 2
+        # for _ in range(nsamples):
+        #     output.append(model(input, torch.rand_like(input)))
+        output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
+        output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
+        loss = kernelized_energy_loss(input.unsqueeze(4), output)
 
         optimizer.zero_grad()
         loss.backward()
@@ -172,10 +174,16 @@ for epoch in range(args.max_epochs):
         # output = model(input_var)
         # loss = loss_op(input_var, output)
 
-        # quantile loss:
-        alpha = torch.rand_like(input_var)
-        output = model(input_var, alpha)
-        loss = quantile_loss(input_var, output, alpha)
+        # # quantile loss:
+        # alpha = torch.rand_like(input_var)
+        # output = model(input_var, alpha)
+        # loss = quantile_loss(input_var, output, alpha)
+
+        # kernelized enetergy loss
+        nsamples = 5
+        output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
+        output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
+        loss = kernelized_energy_loss(input.unsqueeze(4), output)
 
         test_loss += loss.data.item()
 

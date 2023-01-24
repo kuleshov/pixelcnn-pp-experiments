@@ -1,4 +1,5 @@
 import torch
+from math import sqrt
 
 def make_scale_matrix(num_gen, num_orig, device='cpu'):
     # first 'N' entries have '1/N', next 'M' entries have '-1/M'
@@ -7,7 +8,7 @@ def make_scale_matrix(num_gen, num_orig, device='cpu'):
     return torch.cat([s1, s2], dim=0)
 
 # before we had: sigma = [2, 5, 10, 20, 40, 80]
-def kernelized_energy_loss(x, gen_x, sigma = [2, 5, 10, 20, 40, 80], reduction='mean', device='cpu'):
+def kernelized_energy_loss(x, gen_x, sigma = [0.1, 0.5, 1, 2, 5, 10, 20, 40, 80, 160], reduction='sum', device='cuda'):
     """Computes this kernelized energy loss
 
     Tensors x and gen_x need to have shape: (batch, chans, dimx, dimy, nsamples)
@@ -15,39 +16,39 @@ def kernelized_energy_loss(x, gen_x, sigma = [2, 5, 10, 20, 40, 80], reduction='
     This code will compute the kernelized MMD along the dimension 4 (of size nsamples)
     It will then take the average across all dimensions.
     """
-    # WARNING: not tested
-
-    # this converts each tensor from (batch, chans, dimx, dimy, nsamples)
-    # to (batch, nsamples, chans * dimx * dimy)
-    X = X.flatten(start_dim=1, end_dim=3).transpose(1,2)
-    d = X.shape[2]
-
     # concatenation of the generated images and images from the dataset
     # first 'N' rows are the generated ones, next 'M' are from the data
-    X = torch.cat([gen_x, x], dim=1) # shape=(batch, nsamples+1, d)
+    X = torch.cat([gen_x, x], dim=4) # shape=(b, c, x, y, s+1)
     # dot product between all combinations of rows in 'X'
 
-    XX = torch.matmul(X, torch.transpose(X, 1, 2)) # shape=(batch, nsamples+1, nsamples+1)
+    # this converts each tensor from (batch, chans, dimx, dimy, nsamples+1)
+    # to (batch, dimx, dimy, nsamples+1, chans)
+    X = X.permute(0,2,3,4,1)
+    d = X.shape[4]
+
+    XX = torch.matmul(X, torch.transpose(X, 3, 4)) # (b, x, y, s+1, s+1)
     # dot product of rows with themselves
-    X2 = torch.sum(X * X, dim = 2, keepdim=True) # shape=(batch, nsamples+1, 1)
+    X2 = torch.sum(X * X, dim = 4, keepdim=True) # (b, x, y, s+1, 1)
     # exponent entries of the RBF kernel (without the sigma) for each
     # combination of the rows in 'X'
     # -0.5 * (x^Tx - 2*x^Ty + y^Ty)
-    exponent = XX - 0.5 * X2 - 0.5 * torch.transpose(X2, 1, 2) 
-    exponent = exponent / sqrt(d) # shape=(batch, nsamples+1, nsamples+1)
+    exponent = XX - 0.5 * X2 - 0.5 * torch.transpose(X2, 3, 4) 
+    # exponent = exponent / sqrt(d) # (b, x, y, s+1, s+1)
     # exponent = torch.clip(exponent, -1e4, 1e4)
     # scaling constants for each of the rows in 'X'
-    s = make_scale_matrix(gen_x.shape[1], x.shape[1], device=device)
+    s = make_scale_matrix(gen_x.shape[4], x.shape[4], device=device)
     # scaling factors of each of the kernel values, corresponding to the
     # exponent values
-    S = torch.matmul(s, torch.transpose(s, 0, 1)).unsqueeze(0) # shape=(1, nsamples+1, nsamples+1)
+    S = torch.matmul(s, torch.transpose(s, 0, 1)) # shape=(nsamples+1, nsamples+1)
+    S = S.unsqueeze(0).unsqueeze(1).unsqueeze(2) # shape=(1, 1, 1, s+1, s+1)
     loss = 0
     # for each bandwidth parameter, compute the MMD value and add them all
     for i in range(len(sigma)):
         # kernel values for each combination of the rows in 'X'
         v = 1.0 / sigma[i] * exponent
         kernel_val = torch.exp(v)
-        loss += torch.sum(S * kernel_val, axis=2) # shape=(batch, nsamples+1,)
+        # mean or sum here?
+        loss += torch.sum(S * kernel_val, axis=[1,2,3]) # shape=(b, s+1)
 
     if reduction == 'mean':
         final_loss = torch.mean(loss, axis=1)
@@ -58,7 +59,7 @@ def kernelized_energy_loss(x, gen_x, sigma = [2, 5, 10, 20, 40, 80], reduction='
     else:
         raise ValueError()
     # TODO: this is a strange place to take sqrt
-    final_loss = torch.sqrt(final_loss+1e-5) # shape=(batch, )
+    final_loss = torch.sqrt(final_loss) # shape=(batch, )
     return final_loss.mean()
 
 def simple_energy_loss(y_pred1, y_pred2, y_true):
