@@ -167,9 +167,18 @@ for epoch in range(args.max_epochs):
     for (batch_idx, (input,_)) in enumerate(test_loader):
         input = input.cuda()
         input_var = Variable(input)
-        output = model(input_var)
-        loss = loss_op(input_var, output)
+
+        # standard code
+        # output = model(input_var)
+        # loss = loss_op(input_var, output)
+
+        # quantile loss:
+        alpha = torch.rand_like(input_var)
+        output = model(input_var, alpha)
+        loss = quantile_loss(input_var, output, alpha)
+
         test_loss += loss.data.item()
+
         del loss, output
 
     deno = batch_idx * args.batch_size * np.prod(obs) * np.log(2.)
