@@ -36,7 +36,7 @@ parser.add_argument('-n', '--nr_filters', type=int, default=160,
 parser.add_argument('-m', '--nr_logistic_mix', type=int, default=10,
                     help='Number of logistic components in the mixture. Higher = more flexible model')
 parser.add_argument('-l', '--lr', type=float,
-                    default=0.0002, help='Base learning rate')
+                    default=3e-4, help='Base learning rate')
 parser.add_argument('-e', '--lr_decay', type=float, default=0.999995,
                     help='Learning rate decay, applied every step of the optimization')
 parser.add_argument('-b', '--batch_size', type=int, default=64,
@@ -96,7 +96,7 @@ if args.load_params:
     print('model parameters loaded')
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
-scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=args.lr_decay)
+# scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=args.lr_decay)
 
 def sample(model):
     model.train(False)
@@ -159,7 +159,7 @@ for epoch in range(args.max_epochs):
             
 
     # decrease learning rate
-    scheduler.step()
+    # scheduler.step()
     
     torch.cuda.synchronize()
     model.eval()
