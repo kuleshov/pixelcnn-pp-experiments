@@ -72,12 +72,11 @@ def simple_energy_loss(y_pred1, y_pred2, y_true):
     return -torch.mean(energy_score, axis=0)        
 
 def quantile_loss(y_true, y_pred, alpha):
-    # WARNING: not tested
     y_true = y_true.flatten(1)
     y_pred = y_pred.flatten(1)
+    alpha = alpha.flatten(1)
     loss_vector = torch.maximum(
       alpha * (y_true - y_pred), 
       (alpha - 1) * (y_true - y_pred)
     )
-    # do we need to take a sum?
-    return loss.mean()
+    return loss_vector.sum(1).mean(0)

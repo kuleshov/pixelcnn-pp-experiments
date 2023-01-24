@@ -10,7 +10,8 @@ from torchvision import datasets, transforms, utils
 # from tensorboardX import SummaryWriter
 from torch.utils.tensorboard import SummaryWriter
 from utils import * 
-from model import * 
+from model_simple import * 
+from losses import *
 from PIL import Image
 
 parser = argparse.ArgumentParser()
@@ -122,13 +123,13 @@ for epoch in range(args.max_epochs):
         input = Variable(input)
 
         # original code:
-        output = model(input)
-        loss = loss_op(input, output)
+        # output = model(input)
+        # loss = loss_op(input, output)
 
         # quantile loss:
-        # alpha = torch.rand_like(input)
-        # output = model(input, alpha)
-        # loss = quantile_loss(input, output, alpha)
+        alpha = torch.rand_like(input)
+        output = model(input, alpha)
+        loss = quantile_loss(input, output, alpha)
 
         # simple energy loss (old code)
         # alpha1, alpha2 = torch.rand_like(input), torch.rand_like(input)
