@@ -105,8 +105,15 @@ def sample(model):
     for i in range(obs[1]):
         for j in range(obs[2]):
             data_v = Variable(data, volatile=True)
-            out   = model(data_v, sample=True)
-            out_sample = sample_op(out)
+            
+            # original
+            # out   = model(data_v, sample=True)
+            # out_sample = sample_op(out)
+
+            # with alpha
+            alpha = torch.rand_like(data_v)
+            out_sample = model(data_v, alpha, sample=True)
+
             data[:, :, i, j] = out_sample.data[:, :, i, j]
     return data
 
@@ -152,7 +159,7 @@ for epoch in range(args.max_epochs):
         if (batch_idx +1) % args.print_every == 0 : 
             deno = args.print_every * args.batch_size * np.prod(obs) * np.log(2.)
             writer.add_scalar('train/bpd', (train_loss / deno), writes)
-            print('loss : {:.4f}, time : {:.4f}'.format(
+            print('loss : {:.6f}, time : {:.4f}'.format(
                 (train_loss / deno), 
                 (time.time() - time_)))
             train_loss = 0.
@@ -180,7 +187,7 @@ for epoch in range(args.max_epochs):
         # loss = quantile_loss(input_var, output, alpha)
 
         # kernelized enetergy loss
-        nsamples = 5
+        nsamples = 2
         output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
         output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
         loss = kernelized_energy_loss(input.unsqueeze(4), output)
