@@ -47,13 +47,17 @@ parser.add_argument('-s', '--seed', type=int, default=1,
                     help='Random seed to use')
 parser.add_argument('-z', '--block_dim', type=int,
                     default=1, help='What is the block size?')
+parser.add_argument('-u', '--n_samples', type=int,
+                    default=1, help='How many energy samples to draw?')
 args = parser.parse_args()
 
 # reproducibility
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 
-model_name = 'pcnn_lr:{:.5f}_nr-resnet{}_nr-filters{}_block-dim{}'.format(args.lr, args.nr_resnet, args.nr_filters, args.block_dim)
+model_name = 'pcnn_lr{:.5f}_nr-resnet{}_nr-filters{}_block-dim{}_samples{}'.format(
+    args.lr, args.nr_resnet, args.nr_filters, args.block_dim, args.n_samples
+)
 assert not os.path.exists(os.path.join('runs', model_name)), '{} already exists!'.format(model_name)
 writer = SummaryWriter(log_dir=os.path.join('runs', model_name))
 
@@ -149,12 +153,12 @@ for epoch in range(args.max_epochs):
         # loss = simple_energy loss(output1, output2, input)
 
         # kernelized enetergy loss
-        nsamples, output = 10, []
-        for _ in range(nsamples):
+        output = []
+        for _ in range(args.n_samples):
             output.append(model(input, torch.rand_like(input)))
             torch.cuda.empty_cache()
-        # output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
-        output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
+        # output = [model(input, torch.rand_like(input)) for _ in range(args.n_samples)]
+        output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, args.n_samples)
         loss = kernelized_energy_loss(input.unsqueeze(4), output)
 
         optimizer.zero_grad()
@@ -192,12 +196,12 @@ for epoch in range(args.max_epochs):
         # loss = quantile_loss(input_var, output, alpha)
 
         # kernelized enetergy loss
-        nsamples, output = 10, []
-        for _ in range(nsamples):
+        output = []
+        for _ in range(args.n_samples):
             output.append(model(input, torch.rand_like(input)))
             torch.cuda.empty_cache()
-        # output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
-        output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
+        # output = [model(input, torch.rand_like(input)) for _ in range(args.n_samples)]
+        output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, args.n_samples)
         loss = kernelized_energy_loss(input.unsqueeze(4), output)
 
         test_loss += loss.data.item()
