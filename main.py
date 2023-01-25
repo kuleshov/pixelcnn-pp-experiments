@@ -10,7 +10,7 @@ from torchvision import datasets, transforms, utils
 # from tensorboardX import SummaryWriter
 from torch.utils.tensorboard import SummaryWriter
 from utils import * 
-from model_simple import * 
+from model_conditional import * 
 from losses import *
 from PIL import Image
 
@@ -149,7 +149,7 @@ for epoch in range(args.max_epochs):
         # loss = simple_energy loss(output1, output2, input)
 
         # kernelized enetergy loss
-        nsamples, output = 4, []
+        nsamples, output = 10, []
         for _ in range(nsamples):
             output.append(model(input, torch.rand_like(input)))
             torch.cuda.empty_cache()
@@ -192,8 +192,11 @@ for epoch in range(args.max_epochs):
         # loss = quantile_loss(input_var, output, alpha)
 
         # kernelized enetergy loss
-        nsamples = 2
-        output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
+        nsamples, output = 10, []
+        for _ in range(nsamples):
+            output.append(model(input, torch.rand_like(input)))
+            torch.cuda.empty_cache()
+        # output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
         output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
         loss = kernelized_energy_loss(input.unsqueeze(4), output)
 

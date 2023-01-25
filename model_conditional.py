@@ -79,15 +79,17 @@ class PixelCNN(nn.Module):
 
         ###      UP PASS    ###
         x = x if sample else torch.cat((x, self.init_padding), 1)
-        u_list  = [self.u_init(x) + self.alpha_embedder[0](alpha)]
-        ul_list = [self.ul_init[0](x) + self.ul_init[1](x) + self.alpha_embedder[0](alpha)]
+        u_list  = [self.u_init(x)]
+        ul_list = [self.ul_init[0](x) + self.ul_init[1](x)]
         for i in range(3):
             # resnet block
+            u_list[-1] += self.alpha_embedder[i](alpha)
+            ul_list[-1] += self.alpha_embedder[i](alpha)
             u_out, ul_out = self.up_layers[i](u_list[-1], ul_list[-1])
 
-            # add alpha embeddings
-            u_out += self.alpha_embedder[i](alpha)
-            ul_out += self.alpha_embedder[i](alpha)
+            # # add alpha embeddings
+            # u_out += self.alpha_embedder[i](alpha)
+            # ul_out += self.alpha_embedder[i](alpha)
 
             u_list  += u_out
             ul_list += ul_out
