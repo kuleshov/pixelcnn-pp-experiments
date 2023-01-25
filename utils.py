@@ -264,3 +264,34 @@ def load_part_of_model(model, path):
                 print(e)
                 pass
     print('added %s of params:' % (added / float(len(model.state_dict().keys()))))
+
+
+class Block(object):
+    """Rescale the image in a sample to a given size.
+    Args:
+        output_size (tuple or int): Desired output size. If tuple, output is
+            matched to output_size. If int, smaller of image edges is matched
+            to output_size keeping aspect ratio the same.
+    """
+
+    def __init__(self, block_x, block_y):
+        self.n_block_x_dim = block_x
+        self.n_block_y_dim = block_y
+
+    def __call__(self, sample):
+        image = sample
+
+        c, h, w = image.shape
+        n_blocks = int((h*w) / (self.n_block_x_dim * self.n_block_y_dim))
+        n_x_blocks = int(w / self.n_block_x_dim)
+        n_y_blocks = int(h / self.n_block_y_dim)
+        n_block_dim = c*self.n_block_x_dim * self.n_block_y_dim
+        x_rnn = np.zeros([n_block_dim, n_x_blocks, n_y_blocks], dtype = np.float32)
+
+        for xi in range(n_x_blocks):
+            for yi in range(n_y_blocks):
+                x_rnn[:, xi,yi] = image[
+                          :, (xi*self.n_block_x_dim):((xi+1)*self.n_block_x_dim),(yi*self.n_block_y_dim):((yi+1)*self.n_block_y_dim)
+                ].flatten()
+
+        return torch.tensor(x_rnn)

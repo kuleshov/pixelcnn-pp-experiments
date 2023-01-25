@@ -45,23 +45,27 @@ parser.add_argument('-x', '--max_epochs', type=int,
                     default=5000, help='How many epochs to run in total?')
 parser.add_argument('-s', '--seed', type=int, default=1,
                     help='Random seed to use')
+parser.add_argument('-z', '--block_dim', type=int,
+                    default=1, help='What is the block size?')
 args = parser.parse_args()
 
 # reproducibility
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 
-model_name = 'pcnn_lr:{:.5f}_nr-resnet{}_nr-filters{}'.format(args.lr, args.nr_resnet, args.nr_filters)
+model_name = 'pcnn_lr:{:.5f}_nr-resnet{}_nr-filters{}_block-dim{}'.format(args.lr, args.nr_resnet, args.nr_filters, args.block_dim)
 assert not os.path.exists(os.path.join('runs', model_name)), '{} already exists!'.format(model_name)
 writer = SummaryWriter(log_dir=os.path.join('runs', model_name))
 
 sample_batch_size = 25
 obs = (1, 28, 28) if 'mnist' in args.dataset else (3, 32, 32)
-input_channels = obs[0]
+# input_channels = obs[0]
+input_channels = obs[0]*args.block_dim * args.block_dim
 rescaling     = lambda x : (x - .5) * 2.
 rescaling_inv = lambda x : .5 * x  + .5
 kwargs = {'num_workers':1, 'pin_memory':True, 'drop_last':True}
-ds_transforms = transforms.Compose([transforms.ToTensor(), rescaling])
+# ds_transforms = transforms.Compose([transforms.ToTensor(), rescaling])
+ds_transforms = transforms.Compose([transforms.ToTensor(), Block(args.block_dim, args.block_dim), rescaling])
 
 if 'mnist' in args.dataset : 
     train_loader = torch.utils.data.DataLoader(datasets.MNIST(args.data_dir, download=True, 
@@ -86,7 +90,7 @@ elif 'cifar' in args.dataset :
 else :
     raise Exception('{} dataset not in {mnist, cifar10}'.format(args.dataset))
 
-model = PixelCNN(nr_resnet=args.nr_resnet, nr_filters=args.nr_filters, 
+model = PixelCNN(nr_resnet=args.nr_resnet, nr_filters=args.nr_filters*args.block_dim, 
             input_channels=input_channels, nr_logistic_mix=args.nr_logistic_mix)
 model = model.cuda()
 
@@ -126,7 +130,7 @@ for epoch in range(args.max_epochs):
     time_ = time.time()
     model.train()
     for batch_idx, (input,_) in enumerate(train_loader):
-        input = input.cuda()
+        input = input.cuda(non_blocking=True)
         input = Variable(input)
 
         # original code:
@@ -145,10 +149,11 @@ for epoch in range(args.max_epochs):
         # loss = simple_energy loss(output1, output2, input)
 
         # kernelized enetergy loss
-        nsamples = 2
-        # for _ in range(nsamples):
-        #     output.append(model(input, torch.rand_like(input)))
-        output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
+        nsamples, output = 4, []
+        for _ in range(nsamples):
+            output.append(model(input, torch.rand_like(input)))
+            torch.cuda.empty_cache()
+        # output = [model(input, torch.rand_like(input)) for _ in range(nsamples)]
         output = torch.stack(output, dim=4) # (batch, chan, dimx, dimy, nsamples)
         loss = kernelized_energy_loss(input.unsqueeze(4), output)
 
@@ -174,7 +179,7 @@ for epoch in range(args.max_epochs):
     model.eval()
     test_loss = 0.
     for (batch_idx, (input,_)) in enumerate(test_loader):
-        input = input.cuda()
+        input = input.cuda(non_blocking=True)
         input_var = Variable(input)
 
         # standard code
